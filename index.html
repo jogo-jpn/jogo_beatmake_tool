@@ -194,22 +194,25 @@
             }));
         });
 
-                function initPlayer(videoId) {
+                        function initPlayer(videoId) {
             if (player) player.destroy();
             player = new YT.Player('player', {
                 videoId: videoId,
                 playerVars: { 
                     'playsinline': 1,
-                    'controls': 0,      /* コントローラーを非表示 */
-                    'disablekb': 1,     /* キーボード操作を無効化 */
-                    'fs': 0,            /* フルスクリーンボタン非表示 */
-                    'modestbranding': 1 /* YouTubeロゴを最小限に */
+                    'controls': 0,        /* コントローラー非表示 */
+                    'disablekb': 1,       /* キーボード無効 */
+                    'fs': 0,              /* フルスクリーンボタン非表示 */
+                    'modestbranding': 1,  /* YouTubeロゴ最小限 */
+                    'iv_load_policy': 3,  /* 動画内のアノテーションやインフォカードを非表示 */
+                    'rel': 0              /* 関連動画を非表示にする */
                 },
                 events: { 'onReady': () => setInterval(() => {
                     if (!isDragging) document.getElementById('current-time').innerText = player.getCurrentTime().toFixed(2);
                 }, 100) }
             });
         }
+
 
 
         function playPad(index) {
