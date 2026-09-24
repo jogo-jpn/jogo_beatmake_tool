@@ -77,6 +77,16 @@
         let isDragging = false, startY = 0, dragTargetIndex = null, baseTimestamp = 0, pressTimer = null, soundDuration = 0.04, mockWaveData = [];
 
         window.addEventListener('DOMContentLoaded', () => {
+   // ▼▼▼ 【追加】ダブルタップによるズームを強引に阻止する処理 ▼▼▼
+            let lastTouchEnd = 0;
+            document.addEventListener('touchend', (e) => {
+                let now = (new Date()).getTime();
+                if (now - lastTouchEnd <= 300) {
+                    e.preventDefault(); // 300ミリ秒以内の連続タップ（ダブルタップ）を無効化
+                }
+                lastTouchEnd = now;
+            }, { passive: false });
+            // ▲▲▲ここまで▲▲▲
             const padContainer = document.getElementById('pad-container');
             for (let i = 0; i < 16; i++) {
                 padContainer.innerHTML += `
