@@ -39,7 +39,6 @@
             border-radius: 4px; 
             display: block; 
             position: relative;
-            pointer-events: none; 
         }
 
         /* iframeを少し拡大して、上下左右のYouTubeの文字やマークを枠の外に追い出す */
@@ -54,8 +53,24 @@
             pointer-events: none; 
         }
 
-        .control-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-        #current-time { font-family: monospace; font-size: 1rem; color: #ff9900; font-weight: bold; }
+        /* プレイヤーを覆って意図しない一時停止マークやクリックをブロックするカバー */
+        #player-cover {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            background: transparent;
+        }
+
+        .control-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 6px; }
+        #current-time { font-family: monospace; font-size: 0.9rem; color: #ff9900; font-weight: bold; white-space: nowrap; }
+        
+        /* タイムシークバーのスタイル */
+        .seek-container { margin-bottom: 6px; display: flex; align-items: center; }
+        #seek-slider { width: 100%; accent-color: #ff9900; cursor: pointer; }
+
         .slider-container { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: #aaa; flex: 1; }
         .slider-container input[type="range"] { flex: 1; accent-color: #ff9900; cursor: pointer; }
         .pad-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 5px; }
@@ -81,7 +96,16 @@
             <input type="text" id="youtube-url" placeholder="YouTube URL" value="https://youtu.be/BdOoIbmLQFM?si=WkiizxmRSffk_BpZ">
             <button id="load-btn">LOAD</button>
         </div>
-        <div id="player-wrapper"><div id="player"></div></div>
+        <div id="player-wrapper">
+            <div id="player"></div>
+            <div id="player-cover"></div> <!-- マークや勝手な停止を防ぐカバー -->
+        </div>
+        
+        <!-- タイムシークバーを追加 -->
+        <div class="seek-container">
+            <input type="range" id="seek-slider" min="0" max="100" value="0" step="0.1">
+        </div>
+
         <div class="controls">
             <div class="control-row">
                 <div>TIME: <span id="current-time">0.00</span>s</div>
@@ -97,6 +121,7 @@
         let player = null, timestamps = new Array(16).fill(null), padCooldowns = new Array(16).fill(false), audioCtx = null;
         const keyMap = ['1','2','3','4','q','w','e','r','a','s','d','f','z','x','c','v'];
         let isDragging = false, startY = 0, dragTargetIndex = null, baseTimestamp = 0, pressTimer = null, soundDuration = 0.04, mockWaveData = [];
+        let isSeeking = false; // シークバー操作中フラグ
 
         window.addEventListener('DOMContentLoaded', () => {
             // ▼▼▼ ダブルタップによるズームを強引に阻止する処理 ▼▼▼
@@ -131,6 +156,23 @@
                     soundDuration = parseFloat(e.target.value);
                 });
             }
+
+            // ▼▼▼ タイムシークバーのイベント処理 ▼▼▼
+            const seekSlider = document.getElementById('seek-slider');
+            seekSlider.addEventListener('input', () => {
+                isSeeking = true;
+                if (player && player.getDuration) {
+                    let targetTime = (seekSlider.value / 100) * player.getDuration();
+                    document.getElementById('current-time').innerText = targetTime.toFixed(2);
+                }
+            });
+            seekSlider.addEventListener('change', () => {
+                if (player && player.getDuration) {
+                    let targetTime = (seekSlider.value / 100) * player.getDuration();
+                    player.seekTo(targetTime, true);
+                }
+                isSeeking = false;
+            });
 
             document.getElementById('load-btn').addEventListener('click', () => {
                 const url = document.getElementById('youtube-url').value;
@@ -214,11 +256,9 @@
                 p.querySelector('span').innerText = `[${keyMap[i].toUpperCase()}] EMPTY`;
             }));
 
-            // ▼▼▼【キーボード操作対応】キー入力によるパッドのセット＆演奏 ▼▼▼
+            // キーボード操作対応
             window.addEventListener('keydown', (e) => {
-                // 入力フォームやテキストエリアにフォーカスがある場合は無効化
                 if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
-                // キーリピート（押しっぱなしによる連続発火）を無視する場合
                 if (e.repeat) return;
 
                 const keyIndex = keyMap.indexOf(e.key.toLowerCase());
@@ -234,7 +274,6 @@
                             el.classList.remove('empty'); el.classList.add('set');
                             el.querySelector('span').innerText = `[${keyMap[keyIndex].toUpperCase()}] ${t.toFixed(2)}s`;
                             playAttackSound();
-                            // 視覚的フィードバック（一時的にactiveにする）
                             el.classList.add('active');
                             setTimeout(() => el.classList.remove('active'), 100);
                         }
@@ -260,9 +299,21 @@
                     'iv_load_policy': 3,  /* 動画内のアノテーションやインフォカードを非表示 */
                     'rel': 0              /* 関連動画を非表示にする */
                 },
-                events: { 'onReady': () => setInterval(() => {
-                    if (!isDragging) document.getElementById('current-time').innerText = player.getCurrentTime().toFixed(2);
-                }, 100) }
+                events: { 
+                    'onReady': () => {
+                        setInterval(() => {
+                            if (!player || !player.getCurrentTime) return;
+                            if (!isDragging && !isSeeking) {
+                                let currentTime = player.getCurrentTime();
+                                let duration = player.getDuration();
+                                document.getElementById('current-time').innerText = currentTime.toFixed(2);
+                                if (duration > 0) {
+                                    document.getElementById('seek-slider').value = (currentTime / duration) * 100;
+                                }
+                            }
+                        }, 100);
+                    } 
+                }
             });
         }
 
