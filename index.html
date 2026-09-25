@@ -13,7 +13,6 @@
             -webkit-text-size-adjust: 100%; /* iOSで勝手に文字が拡大されるのを防止 */
         }
 
-        /* bodyの touch-action: none は削除しました */
         body { 
             font-family: 'Helvetica Neue', Arial, sans-serif; 
             background-color: #0a0a0a; 
@@ -29,31 +28,33 @@
         .input-group { margin-bottom: 6px; display: flex; gap: 6px; }
         input[type="text"] { flex: 1; padding: 6px; border: 1px solid #333; border-radius: 4px; background-color: #222; color: #fff; font-size: 0.8rem; }
         button { padding: 6px 10px; border: none; border-radius: 4px; background-color: #ff9900; color: #121212; font-weight: bold; cursor: pointer; font-size: 0.8rem; }
-    #player-wrapper { 
-    width: 100%; 
-    max-width: 320px; 
-    height: 180px; 
-    margin: 0 auto 6px auto; 
-    overflow: hidden; /* はみ出た部分を隠す */
-    background: #000; 
-    border-radius: 4px; 
-    display: block; 
-    position: relative;
-    pointer-events: none; 
-}
+        
+        #player-wrapper { 
+            width: 100%; 
+            max-width: 320px; 
+            height: 180px; 
+            margin: 0 auto 6px auto; 
+            overflow: hidden; /* はみ出た部分を隠す */
+            background: #000; 
+            border-radius: 4px; 
+            display: block; 
+            position: relative;
+            pointer-events: none; 
+        }
 
-/* iframeを少し拡大して、上下左右のYouTubeの文字やマークを枠の外に追い出す */
-#player-wrapper iframe { 
-    width: 100%; 
-    height: 100%; 
-    border: 0; 
-    position: absolute;
-    top: -50px;     /* 上部のタイトルやアイコンを隠す */
-    left: 0;
-    height: calc(100% + 100px); /* 縮んだ分を補正 */
-    pointer-events: none; 
-}
+        /* iframeを少し拡大して、上下左右のYouTubeの文字やマークを枠の外に追い出す */
+        #player-wrapper iframe { 
+            width: 100%; 
+            height: 100%; 
+            border: 0; 
+            position: absolute;
+            top: -50px;     /* 上部のタイトルやアイコンを隠す */
+            left: 0;
+            height: calc(100% + 100px); /* 縮んだ分を補正 */
+            pointer-events: none; 
+        }
 
+        .control-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
         #current-time { font-family: monospace; font-size: 1rem; color: #ff9900; font-weight: bold; }
         .slider-container { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: #aaa; flex: 1; }
         .slider-container input[type="range"] { flex: 1; accent-color: #ff9900; cursor: pointer; }
@@ -98,16 +99,17 @@
         let isDragging = false, startY = 0, dragTargetIndex = null, baseTimestamp = 0, pressTimer = null, soundDuration = 0.04, mockWaveData = [];
 
         window.addEventListener('DOMContentLoaded', () => {
-   // ▼▼▼ 【追加】ダブルタップによるズームを強引に阻止する処理 ▼▼▼
+            // ▼▼▼ ダブルタップによるズームを強引に阻止する処理 ▼▼▼
             let lastTouchEnd = 0;
             document.addEventListener('touchend', (e) => {
                 let now = (new Date()).getTime();
                 if (now - lastTouchEnd <= 300) {
-                    e.preventDefault(); // 300ミリ秒以内の連続タップ（ダブルタップ）を無効化
+                    e.preventDefault();
                 }
                 lastTouchEnd = now;
             }, { passive: false });
             // ▲▲▲ここまで▲▲▲
+
             const padContainer = document.getElementById('pad-container');
             for (let i = 0; i < 16; i++) {
                 padContainer.innerHTML += `
@@ -119,6 +121,15 @@
                         <div class="delete-btn" data-index="${i}">×</div>
                     </div>
                 `;
+            }
+
+            // スライダーの値変更をsoundDurationに連動
+            const responseSlider = document.getElementById('response-slider');
+            if (responseSlider) {
+                soundDuration = parseFloat(responseSlider.value);
+                responseSlider.addEventListener('input', (e) => {
+                    soundDuration = parseFloat(e.target.value);
+                });
             }
 
             document.getElementById('load-btn').addEventListener('click', () => {
@@ -202,9 +213,41 @@
                 p.className = 'pad empty';
                 p.querySelector('span').innerText = `[${keyMap[i].toUpperCase()}] EMPTY`;
             }));
+
+            // ▼▼▼【キーボード操作対応】キー入力によるパッドのセット＆演奏 ▼▼▼
+            window.addEventListener('keydown', (e) => {
+                // 入力フォームやテキストエリアにフォーカスがある場合は無効化
+                if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+                // キーリピート（押しっぱなしによる連続発火）を無視する場合
+                if (e.repeat) return;
+
+                const keyIndex = keyMap.indexOf(e.key.toLowerCase());
+                if (keyIndex !== -1) {
+                    e.preventDefault();
+                    if (padCooldowns[keyIndex]) return;
+
+                    if (timestamps[keyIndex] === null) {
+                        if (player?.getCurrentTime) {
+                            let t = player.getCurrentTime();
+                            timestamps[keyIndex] = t;
+                            const el = document.getElementById(`pad-${keyIndex}`);
+                            el.classList.remove('empty'); el.classList.add('set');
+                            el.querySelector('span').innerText = `[${keyMap[keyIndex].toUpperCase()}] ${t.toFixed(2)}s`;
+                            playAttackSound();
+                            // 視覚的フィードバック（一時的にactiveにする）
+                            el.classList.add('active');
+                            setTimeout(() => el.classList.remove('active'), 100);
+                        }
+                    } else {
+                        playPad(keyIndex);
+                    }
+                    padCooldowns[keyIndex] = true;
+                    setTimeout(() => padCooldowns[keyIndex] = false, 50);
+                }
+            });
         });
 
-                        function initPlayer(videoId) {
+        function initPlayer(videoId) {
             if (player) player.destroy();
             player = new YT.Player('player', {
                 videoId: videoId,
@@ -222,8 +265,6 @@
                 }, 100) }
             });
         }
-
-
 
         function playPad(index) {
             playAttackSound();
