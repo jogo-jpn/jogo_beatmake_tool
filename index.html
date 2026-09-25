@@ -53,7 +53,7 @@
             pointer-events: none; 
         }
 
-        /* プレイヤーを覆って意図しない一時停止マークやクリックをブロックするカバー */
+        /* ▼▼▼ 一時停止マークや勝手なクリックを完全にブロックするカバー ▼▼▼ */
         #player-cover {
             position: absolute;
             top: 0;
@@ -67,7 +67,7 @@
         .control-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 6px; }
         #current-time { font-family: monospace; font-size: 0.9rem; color: #ff9900; font-weight: bold; white-space: nowrap; }
         
-        /* タイムシークバーのスタイル */
+        /* ▼▼▼ タイムシークバーのスタイル ▼▼▼ */
         .seek-container { margin-bottom: 6px; display: flex; align-items: center; }
         #seek-slider { width: 100%; accent-color: #ff9900; cursor: pointer; }
 
@@ -98,10 +98,10 @@
         </div>
         <div id="player-wrapper">
             <div id="player"></div>
-            <div id="player-cover"></div> <!-- マークや勝手な停止を防ぐカバー -->
+            <div id="player-cover"></div> <!-- 一時停止マークやクリックをブロックするカバー -->
         </div>
         
-        <!-- タイムシークバーを追加 -->
+        <!-- タイムシークバー -->
         <div class="seek-container">
             <input type="range" id="seek-slider" min="0" max="100" value="0" step="0.1">
         </div>
@@ -124,7 +124,7 @@
         let isSeeking = false; // シークバー操作中フラグ
 
         window.addEventListener('DOMContentLoaded', () => {
-            // ▼▼▼ ダブルタップによるズームを強引に阻止する処理 ▼▼▼
+            // ダブルタップによるズームを阻止
             let lastTouchEnd = 0;
             document.addEventListener('touchend', (e) => {
                 let now = (new Date()).getTime();
@@ -133,7 +133,6 @@
                 }
                 lastTouchEnd = now;
             }, { passive: false });
-            // ▲▲▲ここまで▲▲▲
 
             const padContainer = document.getElementById('pad-container');
             for (let i = 0; i < 16; i++) {
@@ -157,7 +156,7 @@
                 });
             }
 
-            // ▼▼▼ タイムシークバーのイベント処理 ▼▼▼
+            // ▼▼▼ タイムシークバーの操作イベント ▼▼▼
             const seekSlider = document.getElementById('seek-slider');
             seekSlider.addEventListener('input', () => {
                 isSeeking = true;
